@@ -9,7 +9,7 @@ spec:
   ports:
     - port: 8000
       targetPort: 8000
-      nodePort: 48000
+      nodePort: 30080
   selector:
     run: vault-ui
   type: NodePort
