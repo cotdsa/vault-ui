@@ -37,4 +37,4 @@ spec:
         - name: "VAULT_URL_DEFAULT"
           value: "https://vault.cgws.com.au"
         - name: "VAULT_AUTH_DEFAULT"
-          value: "RADIUS"
+          value: "USERNAMEPASSWORD"
