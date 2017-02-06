@@ -18,6 +18,6 @@ stages:
 
 deploy:
   stage: deploy
-  image: registry.cotd.io/php-production/throwaway:master
+  image: registry.cotd.io/foss/spread:master
   script:
   - null-script
