@@ -1,0 +1,27 @@
+---
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: vault-ui
+  namespace: default
+  labels:
+    app: vault-ui
+spec:
+  replicas: 1
+  selector:
+    app: vault-ui
+  template:
+    metadata:
+      labels:
+        app: vault-ui
+        foobar: helloworld
+    spec:
+      containers:
+      - name: app
+        image: registry.cotd.io/foss/vault-ui:cotdsa
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          protocol: TCP
+      restartPolicy: Always
+
