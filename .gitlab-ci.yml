@@ -15,9 +15,11 @@ stages:
 #    - docker build --pull -t "$CI_REGISTRY_IMAGE:$IMAGE_TAG" .
 #    - docker push "$CI_REGISTRY_IMAGE:$IMAGE_TAG"
 
-
 deploy:
   stage: deploy
   image: registry.cotd.io/foss/spread:master
   script:
   - null-script
+  environment:
+    name: staging
+    url: https://vault-ui.cotd.io
