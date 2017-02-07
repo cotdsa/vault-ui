@@ -11,6 +11,7 @@ spec:
   replicas: 1
   selector:
     app: SLUG_PLACEHOLDER
+    project: vault-ui
   template:
     metadata:
       labels:
