@@ -22,6 +22,11 @@ spec:
       - name: app
         image: registry.cotd.io/foss/vault-ui:cotdsa
         imagePullPolicy: Always
+        env:
+        - name: VAULT_URL_DEFAULT
+          value: "https://vault.cgws.com.au"
+        - name: VAULT_AUTH_DEFAULT
+          value: USERNAMEPASSWORD
         ports:
         - containerPort: 8000
           protocol: TCP
