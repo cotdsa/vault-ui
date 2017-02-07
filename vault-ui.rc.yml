@@ -6,7 +6,7 @@ metadata:
   namespace: vaultui
   labels:
     app: SLUG_PLACEHOLDER
-    roject: vault-ui
+    project: vault-ui
 spec:
   replicas: 1
   selector:
