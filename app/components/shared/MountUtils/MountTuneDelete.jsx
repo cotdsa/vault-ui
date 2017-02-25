@@ -5,12 +5,13 @@ import Dialog from 'material-ui/Dialog';
 import FlatButton from 'material-ui/FlatButton';
 import TextField from 'material-ui/TextField';
 import update from 'immutability-helper';
+import VaultObjectDeleter from '../DeleteObject/DeleteObject.jsx'
 
 export default class MountTuneDeleteDialog extends Component {
     static propTypes = {
         mountpointObject: PropTypes.object,
         onActionTuneSuccess: PropTypes.func,
-        onActionUnmountSuccess: PropTypes.func,
+        onActionDeleteSuccess: PropTypes.func,
         onActionError: PropTypes.func,
         onClose: PropTypes.func
     }
@@ -18,7 +19,7 @@ export default class MountTuneDeleteDialog extends Component {
     static defaultProps = {
         mountpointObject: null,
         onActionTuneSuccess: () => { },
-        onActionUnmountSuccess: () => { },
+        onActionDeleteSuccess: () => { },
         onActionError: () => { },
         onClose: () => { }
     }
@@ -29,6 +30,7 @@ export default class MountTuneDeleteDialog extends Component {
 
     state = {
         mountpointObject: {},
+        unmountPath: '',
         openDialog: false
     };
 
@@ -66,26 +68,26 @@ export default class MountTuneDeleteDialog extends Component {
         if (mountCfg) {
             callVaultApi('post', `${this.state.mountpointObject.path}tune`, null, mountCfg)
                 .then(() => {
-                    this.props.onActionTuneSuccess(this.state.mountpointObject.path);
-                    this.setState({ mountpointObject: null, openDialog: false },() => this.props.onClose());
+                    this.props.onActionTuneSuccess(this.state.mountpointObject.path, this.state.mountpointObject.uipath);
+                    this.setState({ mountpointObject: null, openDialog: false }, () => this.props.onClose());
                 })
                 .catch((err) => {
                     this.props.onActionError(err);
                 })
         } else {
-            this.setState({ mountpointObject: null, openDialog: false },() => this.props.onClose());
+            this.setState({ mountpointObject: null, openDialog: false }, () => this.props.onClose());
         }
     }
 
     render() {
         const actions = [
             <FlatButton
-                onTouchTap={() => { }}
-                label="Unmount"
+                onTouchTap={() => this.setState({ unmountPath: this.state.mountpointObject.path })}
+                label="Delete Mountpoint"
                 secondary={true}
             />,
             <FlatButton
-                onTouchTap={() => this.setState({ mountpointObject: null, openDialog: false },() => this.props.onClose())}
+                onTouchTap={() => this.setState({ mountpointObject: null, openDialog: false }, () => this.props.onClose())}
                 label="Cancel"
             />,
             <FlatButton
@@ -98,43 +100,53 @@ export default class MountTuneDeleteDialog extends Component {
         return (
             <div>
                 {this.state.openDialog &&
-                    <Dialog
-                        title={`Tuning mountpoint ${this.state.mountpointObject.path}`}
-                        open={this.state.openDialog}
-                        onRequestClose={() => {
-                            this.setState({
-                                openDialog: false,
-                                mountpointObject: null
-                            });
-                            this.props.onClose();
-                        }}
-                        actions={actions}
-                    >
-                        <div>
+                    <div>
+                        <Dialog
+                            title={`Tuning mountpoint ${this.state.mountpointObject.path}`}
+                            open={this.state.openDialog}
+                            onRequestClose={() => {
+                                this.setState({
+                                    openDialog: false,
+                                    mountpointObject: null
+                                });
+                                this.props.onClose();
+                            }}
+                            actions={actions}
+                        >
                             <div>
-                                <TextField
-                                    floatingLabelFixed={true}
-                                    floatingLabelText="Default Lease TTL in seconds"
-                                    hintText="<system default>"
-                                    value={this.state.mountpointObject.config.default_lease_ttl != 0 ? this.state.mountpointObject.config.default_lease_ttl : ''}
-                                    onChange={(e) => {
-                                        this.setState({ mountpointObject: update(this.state.mountpointObject, { config: { default_lease_ttl: { $set: e.target.value } } }) });
-                                    }}
-                                />
+                                <div>
+                                    <TextField
+                                        floatingLabelFixed={true}
+                                        floatingLabelText="Default Lease TTL in seconds"
+                                        hintText="<system default>"
+                                        value={this.state.mountpointObject.config.default_lease_ttl != 0 ? this.state.mountpointObject.config.default_lease_ttl : ''}
+                                        onChange={(e) => {
+                                            this.setState({ mountpointObject: update(this.state.mountpointObject, { config: { default_lease_ttl: { $set: e.target.value } } }) });
+                                        }}
+                                    />
+                                </div>
+                                <div>
+                                    <TextField
+                                        floatingLabelFixed={true}
+                                        floatingLabelText="Maximum Lease TTL in seconds"
+                                        hintText="<system default>"
+                                        value={this.state.mountpointObject.config.max_lease_ttl != 0 ? this.state.mountpointObject.config.max_lease_ttl : ''}
+                                        onChange={(e) => {
+                                            this.setState({ mountpointObject: update(this.state.mountpointObject, { config: { max_lease_ttl: { $set: e.target.value } } }) });
+                                        }}
+                                    />
+                                </div>
                             </div>
-                            <div>
-                                <TextField
-                                    floatingLabelFixed={true}
-                                    floatingLabelText="Maximum Lease TTL in seconds"
-                                    hintText="<system default>"
-                                    value={this.state.mountpointObject.config.max_lease_ttl != 0 ? this.state.mountpointObject.config.max_lease_ttl : ''}
-                                    onChange={(e) => {
-                                        this.setState({ mountpointObject: update(this.state.mountpointObject, { config: { max_lease_ttl: { $set: e.target.value } } }) });
-                                    }}
-                                />
-                            </div>
-                        </div>
-                    </Dialog >
+                        </Dialog >
+                        <VaultObjectDeleter
+                            path={this.state.unmountPath}
+                            onReceiveResponse={() => {
+                                this.props.onActionDeleteSuccess(this.state.mountpointObject.path, this.state.mountpointObject.uipath);
+                                this.setState({ unmountPath: '', mountpointObject: null, openDialog: false }, () => this.props.onClose());
+                            }}
+                            onReceiveError={this.props.onActionError}
+                        />
+                    </div>
                 }
             </div>
         )

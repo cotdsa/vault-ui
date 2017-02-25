@@ -148,6 +148,7 @@ class Menu extends React.Component {
             return _.map(this.state.authBackends, (backend, idx) => {
                 let tuneObj = {
                     path: `sys/auth/${backend.path}`,
+                    uipath: `/auth/${backend.type}/${backend.path}`,
                     config: backend.config
                 }
 
@@ -180,8 +181,16 @@ class Menu extends React.Component {
                 <MountTuneDeleteDialog
                     mountpointObject={this.state.tuneMountObj}
                     onActionError={snackBarMessage}
-                    onActionTuneSuccess={(path) => {
+                    onActionTuneSuccess={(path, uipath) => {
                         snackBarMessage(`Mountpoint ${path} tuned`)
+                        this.loadAuthBackends();
+                        this.loadSecretBackends();
+                    }}
+                    onActionDeleteSuccess={(path, uipath) => {
+                        snackBarMessage(`Mountpoint ${path} deleted`)
+                        if (this.props.pathname.startsWith(uipath)) {
+                            browserHistory.push('/');
+                        }
                         this.loadAuthBackends();
                         this.loadSecretBackends();
                     }}
