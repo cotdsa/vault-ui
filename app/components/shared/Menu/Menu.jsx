@@ -4,6 +4,9 @@ import styles from './menu.css';
 import Drawer from 'material-ui/Drawer';
 import { browserHistory } from 'react-router';
 import { List, ListItem, makeSelectable } from 'material-ui/List';
+import IconButton from 'material-ui/IconButton';
+import Settings from 'material-ui/svg-icons/action/settings';
+import MountTuneDeleteDialog from '../MountUtils/MountTuneDelete.jsx'
 import { tokenHasCapabilities, callVaultApi } from '../VaultUtils.jsx'
 
 const SelectableList = makeSelectable(List);
@@ -31,6 +34,7 @@ class Menu extends React.Component {
         super(props);
 
         this.state = {
+            tuneMountObj: null,
             selectedPath: this.props.pathname,
             authBackends: [],
             secretBackends: []
@@ -65,7 +69,7 @@ class Menu extends React.Component {
     }
 
 
-    componentDidMount() {
+    loadSecretBackends() {
         tokenHasCapabilities(['read'], 'sys/mounts')
             .then(() => {
                 return callVaultApi('get', 'sys/mounts').then((resp) => {
@@ -75,7 +79,8 @@ class Menu extends React.Component {
                             let entry = {
                                 path: k,
                                 type: v.type,
-                                description: v.description
+                                description: v.description,
+                                config: v.config
                             }
                             return entry;
                         }
@@ -83,8 +88,9 @@ class Menu extends React.Component {
                     this.setState({ secretBackends: discoveredSecretBackends }, () => this.getCurrentMenuItemFromPath(this.props.pathname));
                 }).catch(snackBarMessage)
             }).catch(() => { snackBarMessage(new Error("No permissions to list secret backends")) })
+    }
 
-
+    loadAuthBackends() {
         tokenHasCapabilities(['read'], 'sys/auth')
             .then(() => {
                 return callVaultApi('get', 'sys/auth').then((resp) => {
@@ -94,7 +100,8 @@ class Menu extends React.Component {
                             let entry = {
                                 path: k,
                                 type: v.type,
-                                description: v.description
+                                description: v.description,
+                                config: v.config
                             }
                             return entry;
                         }
@@ -104,19 +111,62 @@ class Menu extends React.Component {
             }).catch(() => { snackBarMessage(new Error("No permissions to list auth backends")) })
     }
 
+    componentDidMount() {
+        this.loadAuthBackends();
+        this.loadSecretBackends();
+    }
+
     render() {
         let renderSecretBackendList = () => {
             return _.map(this.state.secretBackends, (backend, idx) => {
+                let tuneObj = {
+                    path: `sys/mounts/${backend.path}`,
+                    config: backend.config
+                }
+
                 return (
-                    <ListItem key={idx} primaryText={backend.path} secondaryText={`type: ${backend.type}`} value={`/secrets/${backend.type}/${backend.path}`} />
+                    <ListItem
+                        key={idx}
+                        primaryText={backend.path}
+                        secondaryText={`type: ${backend.type}`}
+                        value={`/secrets/${backend.type}/${backend.path}`}
+                        rightIconButton={
+                            <IconButton
+                                style={{ opacity: 0.1 }}
+                                hoveredStyle={{ opacity: 1.0 }}
+                                onTouchTap={() => this.setState({ tuneMountObj: tuneObj })}
+                            >
+                                <Settings />
+                            </IconButton>
+                        }
+                    />
                 )
             })
         }
 
         let renderAuthBackendList = () => {
             return _.map(this.state.authBackends, (backend, idx) => {
+                let tuneObj = {
+                    path: `sys/auth/${backend.path}`,
+                    config: backend.config
+                }
+
                 return (
-                    <ListItem key={idx} primaryText={backend.path} secondaryText={`type: ${backend.type}`} value={`/auth/${backend.type}/${backend.path}`} />
+                    <ListItem
+                        key={idx}
+                        primaryText={backend.path}
+                        secondaryText={`type: ${backend.type}`}
+                        value={`/auth/${backend.type}/${backend.path}`}
+                        rightIconButton={
+                            <IconButton
+                                style={{ opacity: 0.1 }}
+                                hoveredStyle={{ opacity: 1.0 }}
+                                onTouchTap={() => this.setState({ tuneMountObj: tuneObj })}
+                            >
+                                <Settings />
+                            </IconButton>
+                        }
+                    />
                 )
             })
         }
@@ -126,38 +176,50 @@ class Menu extends React.Component {
         }
 
         return (
-            <Drawer containerClassName={styles.root} docked={true} open={true} >
-                <SelectableList value={this.state.selectedPath} onChange={handleMenuChange}>
-                    <ListItem
-                        primaryText="Secret Backends"
-                        primaryTogglesNestedList={true}
-                        initiallyOpen={true}
-                        nestedItems={renderSecretBackendList()}
-                    />
-                    <ListItem
-                        primaryText="Auth Backends"
-                        primaryTogglesNestedList={true}
-                        initiallyOpen={true}
-                        nestedItems={renderAuthBackendList()}
-                    />
-                    <ListItem
-                        primaryText="System"
-                        primaryTogglesNestedList={true}
-                        initiallyOpen={true}
-                        nestedItems={[
-                            <ListItem primaryText="Policies" secondaryText="Manage Vault Access Policies" value="/sys/policies" />,
-                            <ListItem primaryText="Data Wrapper" secondaryText="Securely Forward JSON Data" value="/responsewrapper" />
-                        ]}
-                    />
-                    <ListItem
-                        primaryText="Preferences"
-                        secondaryText="Customize Vault-UI"
-                        primaryTogglesNestedList={false}
-                        value="/settings"
-                    />
+            <div>
+                <MountTuneDeleteDialog
+                    mountpointObject={this.state.tuneMountObj}
+                    onActionError={snackBarMessage}
+                    onActionTuneSuccess={(path) => {
+                        snackBarMessage(`Mountpoint ${path} tuned`)
+                        this.loadAuthBackends();
+                        this.loadSecretBackends();
+                    }}
+                    onClose={() => this.setState({ tuneMountObj: null })}
+                />
+                <Drawer containerClassName={styles.root} docked={true} open={true} >
+                    <SelectableList value={this.state.selectedPath} onChange={handleMenuChange}>
+                        <ListItem
+                            primaryText="Secret Backends"
+                            primaryTogglesNestedList={true}
+                            initiallyOpen={true}
+                            nestedItems={renderSecretBackendList()}
+                        />
+                        <ListItem
+                            primaryText="Auth Backends"
+                            primaryTogglesNestedList={true}
+                            initiallyOpen={true}
+                            nestedItems={renderAuthBackendList()}
+                        />
+                        <ListItem
+                            primaryText="System"
+                            primaryTogglesNestedList={true}
+                            initiallyOpen={true}
+                            nestedItems={[
+                                <ListItem primaryText="Policies" secondaryText="Manage Vault Access Policies" value="/sys/policies" />,
+                                <ListItem primaryText="Data Wrapper" secondaryText="Securely Forward JSON Data" value="/responsewrapper" />
+                            ]}
+                        />
+                        <ListItem
+                            primaryText="Preferences"
+                            secondaryText="Customize Vault-UI"
+                            primaryTogglesNestedList={false}
+                            value="/settings"
+                        />
 
-                </SelectableList>
-            </Drawer>
+                    </SelectableList>
+                </Drawer>
+            </div>
         )
     }
 }
