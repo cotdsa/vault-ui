@@ -30,7 +30,7 @@ import ActionDeleteForever from 'material-ui/svg-icons/action/delete-forever';
 import NavigationCheck from 'material-ui/svg-icons/navigation/check';
 import ContentContentCopy from 'material-ui/svg-icons/content/content-copy';
 import NavigationMenu from 'material-ui/svg-icons/navigation/menu';
-import PolicyPicker from '../../shared/PolicyPicker/PolicyPicker.jsx'
+import ItemPicker from '../../shared/ItemPicker/ItemPicker.jsx'
 
 function snackBarMessage(message) {
     let ev = new CustomEvent("snackbar", { detail: { message: message } });
@@ -347,13 +347,13 @@ export default class TokenAuthBackend extends React.Component {
                         // User doesnt have sudo, use user assigned policies
                         let p1 = callVaultApi('get', 'auth/token/lookup-self').then((resp) => {
                             this.setState({ newTokenAvailablePolicies: resp.data.data.policies });
-                        }).catch(); // <- This shouldnt have failed
+                        }).catch(() => {}); // <- This shouldnt have failed
 
                         // Altough sudo was not granted, we could still create orphans using a different endpoint
                         let p2 = tokenHasCapabilities(['update'], 'auth/token/create-orphan').then(() => {
                             // Turns out we can
                             this.setState({ 'canCreateOrphan': 'create_orphan' });
-                        }).catch(); // <- Nothing we can really do at this point
+                        }).catch(() => {}); // <- Nothing we can really do at this point
 
                         return Promise.all([p1, p2]);
                     });
@@ -413,12 +413,14 @@ export default class TokenAuthBackend extends React.Component {
                 open={this.state.accessorInfoDialog}
                 onRequestClose={() => this.setState({ accessorInfoDialog: false })}
             >
-                <JsonEditor
-                    rootName={`auth/token/accessors/${this.state.selectedAccessor}`}
-                    value={this.state.accessorDetails[this.state.selectedAccessor]}
-                    mode={'view'}
-                    modes={['view']}
-                />
+                <div>
+                    <JsonEditor
+                        rootName={`auth/token/accessors/${this.state.selectedAccessor}`}
+                        value={this.state.accessorDetails[this.state.selectedAccessor]}
+                        mode={'view'}
+                        modes={['view']}
+                    />
+                </div>
             </Dialog>
         )
     }
@@ -595,7 +597,7 @@ export default class TokenAuthBackend extends React.Component {
                     </List>
                     <List>
                         <Subheader>Allowed Policies</Subheader>
-                        <PolicyPicker
+                        <ItemPicker
                             height="120px"
                             selectedPolicies={this.state.roleAttributes.allowed_policies}
                             onSelectedChange={(policies) => {
@@ -729,7 +731,7 @@ export default class TokenAuthBackend extends React.Component {
                     </List>
                     <List>
                         <Subheader>Assign Policies</Subheader>
-                        <PolicyPicker
+                        <ItemPicker
                             height="120px"
                             selectedPolicies={this.state.newTokenSelectedPolicies}
                             onSelectedChange={(policies) => {

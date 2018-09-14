@@ -1,4 +1,5 @@
-import React, { PropTypes } from 'react';
+import React from 'react';
+import PropTypes from 'prop-types';
 import _ from 'lodash';
 import { Tabs, Tab } from 'material-ui/Tabs';
 import Menu from '../shared/Menu/Menu.jsx';
@@ -14,8 +15,8 @@ import JsonEditor from '../shared/JsonEditor.jsx';
 import { Card, CardHeader, CardText } from 'material-ui/Card';
 import { callVaultApi, tokenHasCapabilities, history } from '../shared/VaultUtils.jsx'
 
-let twoMinuteWarningTimeout;
-let logoutTimeout;
+let twoMinuteWarningTimeoutId;
+let logoutTimeoutId;
 
 function snackBarMessage(message) {
     let ev = new CustomEvent("snackbar", { detail: { message: message } });
@@ -38,6 +39,7 @@ export default class App extends React.Component {
             logoutOpen: false,
             logoutPromptSeen: false,
             identity: {},
+            tokenCanQueryCapabilities: true,
             tokenCanListSecretBackends: true,
             tokenCanListAuthBackends: true,
         }
@@ -76,8 +78,10 @@ export default class App extends React.Component {
                     let ttl = resp.data.data.ttl * 1000;
                     // The upper limit of setTimeout is 0x7FFFFFFF (or 2147483647 in decimal)
                     if (ttl > 0 && ttl < 2147483648) {
-                        setTimeout(logoutTimeout, ttl);
-                        setTimeout(twoMinuteWarningTimeout, ttl - TWO_MINUTES);
+                        clearTimeout(logoutTimeoutId);
+                        clearTimeout(twoMinuteWarningTimeoutId);
+                        logoutTimeoutId = setTimeout(logoutTimeout, ttl);
+                        twoMinuteWarningTimeoutId = setTimeout(twoMinuteWarningTimeout, ttl - TWO_MINUTES);
                     }
                 }
             })
@@ -95,6 +99,9 @@ export default class App extends React.Component {
         }
         if (!window.localStorage.getItem('enableCapabilitiesCache')) {
             window.localStorage.setItem('enableCapabilitiesCache', 'true');
+        }
+        if (!window.localStorage.getItem('enableDiffAnnotations')) {
+            window.localStorage.setItem('enableDiffAnnotations', 'false');
         }
         document.addEventListener("snackbar", (e) => {
             let messageStyle = { backgroundColor: green500 };
@@ -116,6 +123,15 @@ export default class App extends React.Component {
 
         this.reloadSessionIdentity();
 
+        // Check access to the sys/capabilities-self path
+        callVaultApi('post', 'sys/capabilities-self', null, { path: '/' })
+            .then(() => {
+                this.setState({ tokenCanQueryCapabilities: true });
+            })
+            .catch(() => {
+                this.setState({ tokenCanQueryCapabilities: false });
+            })
+
         // Check capabilities to list backends
         tokenHasCapabilities(['read'], 'sys/mounts').catch(() => {
             this.setState({ tokenCanListSecretBackends: false });
@@ -127,8 +143,8 @@ export default class App extends React.Component {
     }
 
     componentWillUnmount() {
-        clearTimeout(logoutTimeout);
-        clearTimeout(twoMinuteWarningTimeout);
+        clearTimeout(logoutTimeoutId);
+        clearTimeout(twoMinuteWarningTimeoutId);
     }
 
     renderSessionExpDialog() {
@@ -160,6 +176,32 @@ export default class App extends React.Component {
                 <div className={styles.error}>Your session token will expire soon. Use the renew button to request a lease extension</div>
             </Dialog>
         );
+    }
+
+    renderWarningCapabilities() {
+        return (
+            <Paper className={styles.warningMsg} zDepth={0}>
+                <Card initiallyExpanded={false}>
+                    <CardHeader
+                        title="Your token doesn't have permissions to query for capabilities"
+                        subtitle="Vault UI needs some permissions granted to your token. Tap on this message for more information"
+                        avatar={<Warning style={{ color: '#ffab00' }} />}
+                        actAsExpander={true}
+                        showExpandableButton={true}
+                    />
+                    <CardText expandable={true}>
+                        Your token has been assigned the following policies:
+                        <ul>
+                            {_.map(this.state.identity.policies, (pol, idx) => {
+                                return (<li key={idx}>{pol}</li>)
+                            })}
+                        </ul>
+                        and none of them contains the following permissions:
+                        <JsonEditor mode="text" modes={["text"]} value={{ path: { "sys/capabilities-self": { capabilities: ["update"] } } }} />
+                    </CardText>
+                </Card>
+            </Paper>
+        )
     }
 
     renderWarningAuthBackends() {
@@ -223,6 +265,7 @@ export default class App extends React.Component {
                             <Paper className={styles.welcomeHeader} zDepth={0}>
                                 <h2>Get started by using the left menu to navigate your Vault</h2>
                             </Paper>
+                            {!this.state.tokenCanQueryCapabilities ? this.renderWarningCapabilities() : null}
                             {!this.state.tokenCanListSecretBackends ? this.renderWarningSecretBackends() : null}
                             {!this.state.tokenCanListAuthBackends ? this.renderWarningAuthBackends() : null}
                         </Paper>
@@ -230,24 +273,26 @@ export default class App extends React.Component {
                 </Tabs>
             </div>
         );
-        return <div>
-            <Snackbar
-                className={styles.snackbar}
-                bodyStyle={this.state.snackbarStyle}
-                open={this.state.snackbarMessage != ''}
-                message={this.state.snackbarMessage}
-                autoHideDuration={3000}
-                onRequestClose={() => this.setState({ snackbarMessage: '' })}
-                onActionTouchTap={() => this.setState({ snackbarMessage: '' })}
-            />
-            {this.state.logoutOpen && this.renderSessionExpDialog()}
-            <Header tokenIdentity={this.state.identity} />
-            <Menu pathname={this.props.location.pathname} />
-            <div id={styles.content}>
-                <Paper zDepth={1}>
-                    {this.props.children || welcome}
-                </Paper>
+        return (
+            <div>
+                <Snackbar
+                    className={styles.snackbar}
+                    bodyStyle={this.state.snackbarStyle}
+                    open={this.state.snackbarMessage != ''}
+                    message={this.state.snackbarMessage}
+                    autoHideDuration={3000}
+                    onRequestClose={() => this.setState({ snackbarMessage: '' })}
+                    onActionTouchTap={() => this.setState({ snackbarMessage: '' })}
+                />
+                {this.state.logoutOpen && this.renderSessionExpDialog()}
+                <Header tokenIdentity={this.state.identity} />
+                <Menu pathname={this.props.location.pathname} />
+                <div id={styles.content}>
+                    <Paper zDepth={1} style={{ 'border-right-style': 'inset' }}>
+                        {this.props.children || welcome}
+                    </Paper>
+                </div>
             </div>
-        </div>
+        )
     }
 }

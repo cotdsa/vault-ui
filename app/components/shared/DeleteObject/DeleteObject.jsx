@@ -1,6 +1,7 @@
-import React, { PropTypes, Component } from 'react'
+import React, { Component } from 'react';
+import PropTypes from 'prop-types';
 import _ from 'lodash';
-import { callVaultApi } from '../VaultUtils.jsx'
+import { callVaultApi } from '../VaultUtils.jsx';
 import Dialog from 'material-ui/Dialog';
 import FlatButton from 'material-ui/FlatButton';
 
@@ -23,12 +24,14 @@ export default class VaultObjectDeleter extends Component {
 
     constructor(props) {
         super(props)
+
+        this.state = {
+            openDeleteModal: false,
+            path: this.props.path
+        };
     }
 
-    state = {
-        path: '',
-        openDeleteModal: false
-    };
+
 
     componentWillReceiveProps(nextProps) {
         // Trigger automatically on props change
@@ -50,18 +53,18 @@ export default class VaultObjectDeleter extends Component {
     DeleteObject(fullpath) {
         callVaultApi('delete', fullpath)
             .then((response) => {
-                this.setState({ path: '', openDeleteModal: false });
+                this.setState({ openDeleteModal: false });
                 this.props.onReceiveResponse(response.data);
             })
             .catch((err) => {
-                this.setState({ path: '', openDeleteModal: false });
+                this.setState({ openDeleteModal: false });
                 this.props.onReceiveError(err);
             })
     }
 
     render() {
         const actions = [
-            <FlatButton label="Cancel" primary={true} onTouchTap={() => { this.setState({ openDeleteModal: false, path: '' }); this.props.onModalClose()}} />,
+            <FlatButton label="Cancel" primary={true} onTouchTap={() => { this.setState({ openDeleteModal: false }); this.props.onModalClose(); }} />,
             <FlatButton label="Delete" secondary={true} onTouchTap={() => this.DeleteObject(this.state.path)} />
         ];
 

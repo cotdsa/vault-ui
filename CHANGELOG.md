@@ -1,9 +1,48 @@
-# 2.1.0 (Unreleased)
-- Support AWS EC2 authentication backend
-- Support Okta authentication backend
-- Improve GitHub authentication backend
-- Provide ability to sort secrets
-- Allow naming tokens generated from roles
+# 2.4.0 (unreleased)
+# Features
+- Add KV compatibility #198 
+- Upgrade dependencies #200 
+
+# Bug fixes
+- Fix desktop client icons #199 - #157 
+- Fix issue with favicon #188 
+
+# 2.3.0
+## Features:
+- Refactor PolicyPicker to ItemPicker for general use - #175 
+- Refactor item listing to use a centralized class /w filtering, pagination and sorting by default - #175 + #187 
+- Add backend mount description field - #105
+- Allow self-signed CA certifications - #140
+- Support Okta Authentication Backend - #156 
+
+# 2.2.0
+## Features
+- Add filtering to all lists - https://github.com/djenriquez/vault-ui/pull/106
+- Add pagination to secrets list - https://github.com/djenriquez/vault-ui/pull/110
+- Add JSON diff view to compare updates - https://github.com/djenriquez/vault-ui/pull/84
+- Add ability to renew token - https://github.com/djenriquez/vault-ui/pull/114
+- Add AWS auth backend with IAM - https://github.com/djenriquez/vault-ui/pull/126
+
+## Enhancements
+- Optimize Docker image size + caching - https://github.com/djenriquez/vault-ui/pull/122
+
+## Bug fixes
+- Fix issue with secrets loading causing UI to be unresponsive - https://github.com/djenriquez/vault-ui/pull/110
+- Fix docker build electron dependency - https://github.com/djenriquez/vault-ui/pull/112
+- Fix issue with sorting/pagination of secrets not affecting the entire secret namespace - https://github.com/djenriquez/vault-ui/pull/127 & https://github.com/djenriquez/vault-ui/pull/134
+- Fix issue with trailing slashes being sent to Vault requests - https://github.com/djenriquez/vault-ui/pull/104
+
+# 2.1.0
+## Features
+- Support AWS EC2 authentication backend - https://github.com/djenriquez/vault-ui/pull/76
+- Support User/Pass authentication backend - https://github.com/djenriquez/vault-ui/pull/94
+- Improve GitHub authentication backend - https://github.com/djenriquez/vault-ui/pull/78
+- Provide ability to sort secrets - https://github.com/djenriquez/vault-ui/pull/82
+- Improvements to backend code + upgrade React components - https://github.com/djenriquez/vault-ui/pull/93
+- Support use with new Desktop App - https://github.com/djenriquez/vault-ui/pull/85
+
+## Bug Fixes
+- Fix 307 redirects
 
 # 2.0.1
 - Fix reference to Vault icon

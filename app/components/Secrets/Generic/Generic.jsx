@@ -1,41 +1,32 @@
-import React, { PropTypes } from 'react';
+import React from 'react';
+import PropTypes from 'prop-types';
 import { Tabs, Tab } from 'material-ui/Tabs';
 import { Toolbar, ToolbarGroup } from 'material-ui/Toolbar';
 import Subheader from 'material-ui/Subheader';
 import Paper from 'material-ui/Paper';
-import Avatar from 'material-ui/Avatar';
-import FileFolder from 'material-ui/svg-icons/file/folder';
-import ActionAssignment from 'material-ui/svg-icons/action/assignment';
-import ActionDelete from 'material-ui/svg-icons/action/delete';
-import ActionDeleteForever from 'material-ui/svg-icons/action/delete-forever';
-import IconButton from 'material-ui/IconButton';
-import Divider from 'material-ui/Divider';
-import SelectField from 'material-ui/SelectField';
-import MenuItem from 'material-ui/MenuItem'
-import { List, ListItem } from 'material-ui/List';
+import { List } from 'material-ui/List';
 import { Step, Stepper, StepLabel } from 'material-ui/Stepper';
 import sharedStyles from '../../shared/styles.css';
 import _ from 'lodash';
 import Dialog from 'material-ui/Dialog';
 import FlatButton from 'material-ui/FlatButton';
 import TextField from 'material-ui/TextField';
-import { green500, green400, red500, red300, white } from 'material-ui/styles/colors.js'
+import { green500, green400, white } from 'material-ui/styles/colors.js'
 import { callVaultApi, tokenHasCapabilities, history } from '../../shared/VaultUtils.jsx'
 import JsonEditor from '../../shared/JsonEditor.jsx';
 import SecretWrapper from '../../shared/Wrapping/Wrapper.jsx'
 import { Link } from 'react-router'
-
-const SORT_DIR = {
-    ASC: 'asc',
-    DESC: 'desc'
-};
+import ItemList from '../../shared/ItemList/ItemList.jsx';
+import copy from 'copy-to-clipboard';
+import ContentContentCopy from 'material-ui/svg-icons/content/content-copy';
+import IconButton from 'material-ui/IconButton';
 
 function snackBarMessage(message) {
     let ev = new CustomEvent("snackbar", { detail: { message: message } });
     document.dispatchEvent(ev);
 }
 
-class GenericSecretBackend extends React.Component {
+export default class GenericSecretBackend extends React.Component {
     static propTypes = {
         params: PropTypes.object.isRequired,
         location: PropTypes.object.isRequired
@@ -44,21 +35,20 @@ class GenericSecretBackend extends React.Component {
     constructor(props) {
         super(props);
 
+        this.baseUrl = `/secrets/${this.props.params.namespace}/`;
+        this.baseVaultPath = `${this.props.params.splat}`;
+
         this.state = {
             newSecretBtnDisabled: true,
-            secretSortDir: SORT_DIR.ASC,
-            secretList: [],
             secretContent: {},
             newSecretName: '',
-            currentLogicalPath: '',
+            currentLogicalPath: `${this.props.params.splat}`,
             disableSubmit: true,
             openNewObjectModal: false,
             openEditObjectModal: false,
-            openDeleteModal: false,
-            deletingKey: '',
-            wrapPath: null,
             useRootKey: window.localStorage.getItem("useRootKey") === 'true' || false,
             rootKey: window.localStorage.getItem("secretsRootKey") || '',
+            secretList: [],
         }
 
         _.bindAll(
@@ -68,10 +58,8 @@ class GenericSecretBackend extends React.Component {
             'loadSecretsList',
             'displaySecret',
             'CreateUpdateObject',
-            'DeleteObject',
             'renderNewObjectDialog',
-            'renderEditObjectDialog',
-            'renderDeleteConfirmationDialog'
+            'renderEditObjectDialog'
         );
     }
 
@@ -85,7 +73,7 @@ class GenericSecretBackend extends React.Component {
         return path.substring(0, _.lastIndexOf(path, '/') + 1);
     }
 
-    loadSecretsList() {
+    loadSecretsList(prevProps) {
         // Control the new secret button
         tokenHasCapabilities(['create'], this.state.currentLogicalPath)
             .then(() => {
@@ -100,12 +88,16 @@ class GenericSecretBackend extends React.Component {
                 // Load secret list at current path
                 callVaultApi('get', this.state.currentLogicalPath, { list: true }, null, null)
                     .then((resp) => {
-                        this.setState({ secretList: resp.data.data.keys });
+                        let secrets = _.get(resp, 'data.data.keys', []);
+                        this.setState({ secretList: secrets });
                     })
                     .catch((err) => {
                         // 404 is expected when no secrets are present
                         if (!_.has(err, 'response') || err.response.status != 404)
                             snackBarMessage(err)
+                        else {
+                            this.setState({ secretList: [] });
+                        }
                     })
             })
             .catch(() => {
@@ -113,7 +105,6 @@ class GenericSecretBackend extends React.Component {
                 snackBarMessage(new Error(`No permissions to list content at ${this.state.currentLogicalPath}`));
             })
     }
-
 
     displaySecret() {
         tokenHasCapabilities(['read'], this.state.currentLogicalPath)
@@ -131,10 +122,6 @@ class GenericSecretBackend extends React.Component {
             })
     }
 
-    componentWillMount() {
-        this.setState({ currentLogicalPath: `${this.props.params.namespace}/${this.props.params.splat}` })
-    }
-
     componentDidMount() {
         if (this.isPathDirectory(this.props.params.splat)) {
             this.loadSecretsList();
@@ -144,19 +131,18 @@ class GenericSecretBackend extends React.Component {
     }
 
     componentWillReceiveProps(nextProps) {
-        this.setState({ currentLogicalPath: `${nextProps.params.namespace}/${nextProps.params.splat}` })
+        if (!_.isEqual(`${nextProps.params.splat}`, this.state.currentLogicalPath)) {
+            this.setState({ currentLogicalPath: `${nextProps.params.splat}` })
+        }
         if (!_.isEqual(this.props.params.namespace, nextProps.params.namespace)) {
-            // Reset
-            this.setState({
-                secretList: []
-            })
+            this.baseUrl = `/secrets/${nextProps.params.namespace}/`;
         }
     }
 
-    componentDidUpdate(prevProps) {
+    componentDidUpdate(prevProps, prevState) {
         if (!_.isEqual(this.props.params, prevProps.params)) {
             if (this.isPathDirectory(this.props.params.splat)) {
-                this.loadSecretsList();
+                this.loadSecretsList(prevProps);
             } else {
                 this.displaySecret();
             }
@@ -189,21 +175,6 @@ class GenericSecretBackend extends React.Component {
                 } else {
                     snackBarMessage(`Secret ${fullpath} updated`);
                 }
-            })
-            .catch(snackBarMessage)
-    }
-
-    DeleteObject(key) {
-        let fullpath = this.state.currentLogicalPath + key;
-        callVaultApi('delete', fullpath, null, null, null)
-            .then(() => {
-                let secrets = this.state.secretList;
-                let secretToDelete = _.find(secrets, (secretToDelete) => { return secretToDelete == key; });
-                secrets = _.pull(secrets, secretToDelete);
-                this.setState({
-                    secretList: secrets,
-                });
-                snackBarMessage(`Secret ${fullpath} deleted`);
             })
             .catch(snackBarMessage)
     }
@@ -325,6 +296,7 @@ class GenericSecretBackend extends React.Component {
                 modal={false}
                 actions={actions}
                 open={this.state.openEditObjectModal}
+                autoDetectWindowHeight={true}
                 autoScrollBodyContent={true}
                 onRequestClose={() => {
                     this.setState({ openEditObjectModal: false, secretContent: '' })
@@ -336,107 +308,51 @@ class GenericSecretBackend extends React.Component {
         );
     }
 
-    renderDeleteConfirmationDialog() {
-        const actions = [
-            <FlatButton label="Cancel" primary={true} onTouchTap={() => this.setState({ openDeleteModal: false, deletingKey: '' })} />,
-            <FlatButton label="Delete" style={{ color: white }} hoverColor={red300} backgroundColor={red500} primary={true} onTouchTap={() => submitDelete()} />
-        ];
-
-        let submitDelete = () => {
-            this.DeleteObject(this.state.deletingKey);
-            this.setState({ openDeleteModal: false });
-        }
-
-        return (
-            <Dialog
-                title={`Delete Confirmation`}
-                modal={false}
-                actions={actions}
-                open={this.state.openDeleteModal}
-            >
-
-                <p>You are about to permanently delete {this.state.currentLogicalPath}{this.state.deletingKey}.  Are you sure?</p>
-                <em>To disable this prompt, visit the settings page.</em>
-            </Dialog>
-        )
-    }
-
-
-
     render() {
-        let renderSecretListItems = (returndirs, returnobjs) => {
-            let sortedSecrets = _.orderBy(this.state.secretList, _.identity, this.state.secretSortDir);
-            return _.map(sortedSecrets, (key) => {
-                let avatar = (<Avatar icon={<ActionAssignment />} />);
-                let action = (
-                    <IconButton
-                        tooltip="Delete"
-                        onTouchTap={() => {
-                            tokenHasCapabilities(['delete'], this.state.currentLogicalPath + key).then(() => {
-                                if (window.localStorage.getItem("showDeleteModal") === 'false') {
-                                    this.DeleteObject(key);
-                                } else {
-                                    this.setState({ openDeleteModal: true, deletingKey: key })
-                                }
-                            }).catch(() => {
-                                snackBarMessage(new Error("Access denied"));
-                            })
-                        }}
-                    >
-                        {window.localStorage.getItem("showDeleteModal") === 'false' ? <ActionDeleteForever color={red500} /> : <ActionDelete color={red500} />}
-                    </IconButton>
-                );
-                let capability = 'read';
-
-                if (this.isPathDirectory(key)) {
-                    avatar = (<Avatar icon={<FileFolder />} />);
-                    action = (<IconButton />);
-                    capability = 'list';
-                }
-
-                let item = (
-                    <ListItem
-                        key={key}
-                        primaryText={key}
-                        insetChildren={true}
-                        leftAvatar={avatar}
-                        rightIconButton={action}
-                        onTouchTap={() => {
-                            this.setState({ newSecretName: '' });
-                            tokenHasCapabilities([capability], this.state.currentLogicalPath + key).then(() => {
-                                history.push(`/secrets/generic/${this.state.currentLogicalPath}${key}`);
-                            }).catch(() => {
-                                snackBarMessage(new Error("Access denied"));
-                            })
-
-                        }}
-                    />
-                )
-                if (this.isPathDirectory(key) && returndirs) { return item }
-                if (!this.isPathDirectory(key) && returnobjs) { return item }
-            });
-        }
-
         let renderBreadcrumb = () => {
             let components = _.initial(this.getBaseDir(this.state.currentLogicalPath).split('/'));
             return _.map(components, (dir, index) => {
                 var relativelink = [].concat(components).slice(0, index + 1).join('/') + '/';
-                return (<Step key={index}><StepLabel style={{ paddingLeft: '5px', paddingRight: '5px' }} icon={<span />}><Link to={`/secrets/generic/${relativelink}`}>{dir}</Link></StepLabel></Step>)
+                if (index === 0) {
+                    // no left padding for first item
+                    var stepLabelStyle = { paddingLeft: '0' }
+                    var iconContainerStyle = { padding: '0' }
+                } else {
+                    var stepLabelStyle = { paddingLeft: '10px' }
+                    var iconContainerStyle = {}
+                }
+                return (<Step key={index}><StepLabel style={Object.assign({ paddingRight: '10px', fontSize: '16px', whiteSpace: 'nowrap' }, stepLabelStyle)} iconContainerStyle={iconContainerStyle} icon={<span />}><Link to={`${this.baseUrl}${relativelink}`}>{dir}</Link></StepLabel></Step>)
             });
         }
+
 
         return (
             <div>
                 {this.renderEditObjectDialog()}
                 {this.renderNewObjectDialog()}
-                {this.renderDeleteConfirmationDialog()}
                 <Tabs>
                     <Tab label="Browse Secrets" >
                         <Paper className={sharedStyles.TabInfoSection} zDepth={0}>
                             Here you can browse, edit, create and delete secrets.
                         </Paper>
-                        <Paper className={sharedStyles.TabContentSection} zDepth={0}>
-                            <Toolbar>
+                        <Paper zDepth={0}>
+                            <Toolbar style={{ alignItems: 'flex-start' }}>
+                                <ToolbarGroup>
+                                    <Subheader style={{ paddingLeft: "0" }} inset={false}>
+                                        <IconButton style={{ paddingTop: "20px" }} tooltip="Copy Path" onTouchTap={() => { copy(this.state.currentLogicalPath) }} >
+                                            <ContentContentCopy />
+                                        </IconButton>
+                                    </Subheader>
+                                    <Subheader style={{ paddingLeft: "10px" }} inset={false}>
+                                        <Stepper
+                                            style={{ justifyContent: 'flex-start', fontWeight: 600 }}
+                                            linear={false}
+                                            connector={<span>/</span>}
+                                        >
+                                            {renderBreadcrumb()}
+                                        </Stepper>
+                                    </Subheader>
+                                </ToolbarGroup>
                                 <ToolbarGroup firstChild={true}>
                                     <FlatButton
                                         primary={true}
@@ -454,34 +370,33 @@ class GenericSecretBackend extends React.Component {
                                         }}
                                     />
                                 </ToolbarGroup>
-                                <ToolbarGroup lastChild={true}>
-                                    <SelectField
-                                        style={{width: 150}}
-                                        autoWidth={true}
-                                        floatingLabelText="Sort Secrets"
-                                        floatingLabelFixed={true}
-                                        value={this.state.secretSortDir} onChange={(e,i,v) => {this.setState({secretSortDir: v})}}
-                                    >
-                                        <MenuItem value={SORT_DIR.ASC} primaryText="Ascending"/>
-                                        <MenuItem value={SORT_DIR.DESC} primaryText="Descending"/>
-                                    </SelectField>
-                                </ToolbarGroup>
+
                             </Toolbar>
-                            <List className={sharedStyles.listStyle}>
-                                <Subheader inset={false}>
-                                    <Stepper
-                                        style={{ justifyContent: 'flex-start', textTransform: 'uppercase', fontWeight: 600 }}
-                                        linear={false}
-                                        connector={<span>/</span>}
-                                    >
-                                        {renderBreadcrumb()}
-                                    </Stepper>
-                                </Subheader>
-                                <Divider inset={false} />
-                                {renderSecretListItems(true, false)}
-                                <Divider inset={true} />
-                                {renderSecretListItems(false, true)}
-                            </List>
+                            <ItemList
+                                itemList={this.state.secretList}
+                                itemUri={`${this.state.currentLogicalPath.substring(0, this.state.currentLogicalPath.length - 1)}`}
+                                maxItemsPerPage={25}
+                                onDeleteTap={(deletedItem) => {
+                                    let secrets = _.clone(this.state.secretList);
+                                    let secretToDelete = _.find(secrets, (secretToDelete) => { return secretToDelete == deletedItem; });
+                                    secrets = _.pull(secrets, secretToDelete);
+                                    console.log(secrets);
+                                    this.setState({
+                                        secretList: secrets
+                                    });
+                                    this.loadSecretsList();
+                                    snackBarMessage(`Secret ${deletedItem} deleted`);
+                                }}
+                                onTouchTap={(key) => {
+                                    tokenHasCapabilities([this.isPathDirectory(key) ? 'list' : 'read'], `${this.state.currentLogicalPath}${key}`)
+                                        .then(() => {
+                                            this.setState({ newSecretName: '', currentLogicalPath: `${this.state.currentLogicalPath}${key}` });
+                                            history.push(`${this.baseUrl}${this.state.currentLogicalPath}`);
+                                        }).catch(() => {
+                                            snackBarMessage(new Error("Access denied"));
+                                        })
+                                }}
+                            />
                         </Paper>
                     </Tab>
                 </Tabs>
@@ -489,5 +404,3 @@ class GenericSecretBackend extends React.Component {
         )
     }
 }
-
-export default GenericSecretBackend;

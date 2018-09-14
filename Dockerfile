@@ -1,11 +1,19 @@
-FROM node:alpine
+FROM node:8-alpine
 
-MAINTAINER Vault-UI Contributors
+LABEL maintainer="Vault-UI Contributors"
 
-ADD . /app
 WORKDIR /app
-RUN npm install --silent && npm run build-web && npm prune --silent --production
+COPY . .
+
+RUN yarn install --pure-lockfile --silent && \
+    yarn run build-web && \
+    yarn install --silent --production && \
+    yarn check --verify-tree --production && \
+    yarn global add nodemon && \
+    yarn cache clean && \
+    rm -f /root/.electron/*
 
 EXPOSE 8000
 
-CMD ["npm", "run", "serve"]
+ENTRYPOINT ["./bin/entrypoint.sh"]
+CMD ["start_app"]
